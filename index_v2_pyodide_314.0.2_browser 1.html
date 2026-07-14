@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net;
+  connect-src 'self' blob: https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org;
+  worker-src 'self' blob:;
+  img-src blob: data:;
+  style-src 'self' 'unsafe-inline';
+  font-src data:;
+  object-src 'none';
+  frame-src 'none';
+  media-src 'none';
+  manifest-src 'none';
+  base-uri 'none';
+  form-action 'none';
+">
+<title>Till Reconciliation - Private Browser App</title>
+<style>
+  :root{
+    --paper:#f6f5f1; --card:#ffffff; --ink:#1b1f23; --muted:#5c6570;
+    --line:#dcdad2; --line2:#e9e7e0;
+    --accent:#2f6f5e;           /* balanced / ok */
+    --accent-soft:#e6efeb;
+    --warn:#9a6b1e; --warn-soft:#f6edda;
+    --bad:#a63232; --bad-soft:#f6e4e2;
+    --focus:#2f6f5e;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent)}
+  .wrap{max-width:820px;margin:0 auto;padding:24px 18px 64px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;
+    gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:6px}
+  header.top h1{font-size:21px;margin:0;letter-spacing:-.01em}
+  header.top .sub{font-family:var(--mono);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  /* engine status */
+  #engine{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12.5px;
+    color:var(--muted);padding:9px 0 2px}
+  #engine .dot{width:9px;height:9px;border-radius:50%;background:#c9c6bd;flex:none}
+  #engine.ready .dot{background:var(--accent)}
+  #engine.err .dot{background:var(--bad)}
+  /* tabs */
+  .tabs{display:flex;gap:2px;margin:18px 0 0}
+  .tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:#efeee9;
+    color:var(--muted);font:inherit;font-size:14px;padding:9px 16px;cursor:pointer;
+    border-radius:8px 8px 0 0}
+  .tab[aria-selected="true"]{background:var(--card);color:var(--ink);font-weight:600}
+  .tab:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:0 10px 10px 10px;
+    padding:20px}
+  .panel[hidden]{display:none}
+  .lead{color:var(--muted);margin:0 0 18px;font-size:14px}
+  /* drop rows */
+  .field{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;
+    padding:10px 0;border-top:1px solid var(--line2)}
+  .field:first-of-type{border-top:none}
+  .field .lab{font-size:14px}
+  .field .lab .req{color:var(--bad)}
+  .field .lab .opt{color:var(--muted);font-size:12px;font-family:var(--mono)}
+  .filebtn{display:inline-flex;align-items:center;gap:10px}
+  .filebtn label{border:1px solid var(--line);background:#faf9f6;border-radius:7px;
+    padding:7px 12px;cursor:pointer;font-size:13.5px;white-space:nowrap}
+  .filebtn label:hover{border-color:#c7c4ba}
+  .filebtn input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .filebtn .fname{font-family:var(--mono);font-size:12.5px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filebtn .fname.set{color:var(--ink)}
+  .adv{margin:14px 0 2px}
+  .adv summary{cursor:pointer;font-size:13px;color:var(--muted)}
+  .adv .row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13.5px}
+  .adv input[type=text]{font:inherit;font-family:var(--mono);border:1px solid var(--line);
+    border-radius:6px;padding:6px 8px;width:90px}
+  .actions{display:flex;gap:12px;align-items:center;margin-top:20px;
+    border-top:1px solid var(--line2);padding-top:18px}
+  button.go{appearance:none;border:none;background:var(--ink);color:#fff;font:inherit;
+    font-weight:600;font-size:14.5px;padding:11px 20px;border-radius:8px;cursor:pointer}
+  button.go:hover{background:#000}
+  button.go:disabled{background:#b8b5ac;cursor:not-allowed}
+  button.go:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .hint{font-size:12.5px;color:var(--muted)}
+  /* verdict stamp — the signature element */
+  .verdict{margin-top:22px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .verdict .band{padding:16px 18px;display:flex;align-items:center;gap:14px}
+  .verdict .stamp{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px;
+    text-transform:uppercase;border:2px solid currentColor;border-radius:6px;padding:6px 11px;flex:none}
+  .verdict .headline{font-size:15px}
+  .verdict.ok .band{background:var(--accent-soft);color:var(--accent)}
+  .verdict.warn .band{background:var(--warn-soft);color:var(--warn)}
+  .verdict.bad .band{background:var(--bad-soft);color:var(--bad)}
+  .verdict .headline b{color:var(--ink)}
+  /* summary console */
+  pre.console{margin:0;background:#15181b;color:#d7dbdf;font-family:var(--mono);font-size:12.5px;
+    line-height:1.55;padding:16px 18px;white-space:pre-wrap;word-break:break-word;
+    max-height:340px;overflow:auto;border-top:1px solid var(--line)}
+  pre.console .g{color:#7fbf9a}
+  pre.console .y{color:#e0c584}
+  pre.console .r{color:#e08d84}
+  /* downloads */
+  .downloads{margin-top:18px}
+  .downloads h3{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+    margin:0 0 10px;font-family:var(--mono)}
+  .dgrid{display:flex;flex-wrap:wrap;gap:8px}
+  .dl{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#faf9f6;
+    border-radius:7px;padding:8px 12px;font-size:13px;cursor:pointer;color:var(--ink)}
+  .dl:hover{border-color:#c7c4ba}
+  .dl .ext{font-family:var(--mono);font-size:10.5px;color:#fff;background:var(--muted);
+    border-radius:4px;padding:2px 5px;letter-spacing:.04em}
+  .dl.primary .ext{background:var(--accent)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:14px;padding-left:12px;
+    border-left:2px solid var(--line)}
+  footer.foot{margin-top:26px;font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .privacy{margin:10px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#faf9f6;font-size:12.5px;color:var(--muted)}
+  .privacy strong{color:var(--ink)}
+  .clearbtn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--bad);font:inherit;font-size:13px;padding:8px 12px;border-radius:7px;cursor:pointer}
+  .clearbtn:disabled{color:#9b9992;background:#efeee9;cursor:not-allowed}
+  @media (max-width:560px){
+    .field{grid-template-columns:1fr;gap:6px}
+    .verdict .band{flex-direction:column;align-items:flex-start}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .verdict{animation:rise .28s ease-out}
+    @keyframes rise{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Till Reconciliation</h1>
+    <span class="sub">Private &middot; in&#8209;browser</span>
+  </header>
+  <div id="engine"><span class="dot"></span><span id="engineTxt">Starting Python engine&hellip;</span></div>
+  <div class="privacy" id="privacyState"><strong>Locked:</strong> file selection remains disabled until every pinned library has loaded and its version has been verified.</div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-daily" role="tab" aria-selected="true" aria-controls="panel-daily">Daily reconciliation</button>
+    <button class="tab" id="tab-combine" role="tab" aria-selected="false" aria-controls="panel-combine">Combine journals</button>
+  </div>
+
+  <!-- ===================== DAILY ===================== -->
+  <section class="panel" id="panel-daily" role="tabpanel" aria-labelledby="tab-daily">
+    <p class="lead">Attach the day&rsquo;s files, then run. Everything is processed on this computer &mdash;
+      no file leaves the browser and no internet connection is required after the local bundle is in place. Exports are written only when the journals balance.</p>
+
+    <div class="field">
+      <span class="lab">Till export <span class="req">*</span></span>
+      <span class="filebtn"><label for="f_till">Choose .xlsx&hellip;</label>
+        <input type="file" id="f_till" accept=".xlsx" disabled><span class="fname" id="n_till">no file chosen</span></span>
+    </div>
+    <div class="field">
+      <span class="lab">Zettle download <span class="req">*</span></span>
+      <span class="filebtn"><label for="f_zettle">Choose .csv&hellip;</label>
+        <input type="file" id="f_zettle" accept=".csv" disabled><span class="fname" id="n_zettle">no file chosen</span></span>
+    </div>
+    <div class="field">
+      <span class="lab">Banking floats <span class="req">*</span></span>
+      <span class="filebtn"><label for="f_bank">Choose .csv&hellip;</label>
+        <input type="file" id="f_bank" accept=".csv" disabled><span class="fname" id="n_bank">no file chosen</span></span>
+    </div>
+    <div class="field">
+      <span class="lab">Coupons <span class="opt">optional</span></span>
+      <span class="filebtn"><label for="f_coup">Choose .csv&hellip;</label>
+        <input type="file" id="f_coup" accept=".csv" disabled><span class="fname" id="n_coup">no file chosen</span></span>
+    </div>
+    <div class="field">
+      <span class="lab">Reference <span class="opt">optional</span></span>
+      <span class="filebtn"><label for="f_ref">Choose .json&hellip;</label>
+        <input type="file" id="f_ref" accept=".json" disabled><span class="fname" id="n_ref">built&#8209;in (from 29/01/26)</span></span>
+    </div>
+
+    <details class="adv">
+      <summary>Advanced</summary>
+      <div class="row"><label for="f_blank">Blank&#8209;description label</label>
+        <input type="text" id="f_blank" value="0"></div>
+    </details>
+
+    <div class="actions">
+      <button class="go" id="runDaily" disabled>Run reconciliation</button>
+      <span class="hint" id="dailyHint">Waiting for the engine to load&hellip;</span>
+    </div>
+
+    <div id="dailyResult"></div>
+  </section>
+
+  <!-- ===================== COMBINE ===================== -->
+  <section class="panel" id="panel-combine" role="tabpanel" aria-labelledby="tab-combine" hidden>
+    <p class="lead">Attach the PTF&nbsp;1 / PTF&nbsp;2 / PTF&nbsp;3 export CSVs you want in one import file &mdash;
+      a single day or several. They&rsquo;re stacked (all PTF&nbsp;1, then PTF&nbsp;2, then PTF&nbsp;3) and balance&#8209;checked.</p>
+
+    <div class="field">
+      <span class="lab">PTF exports <span class="req">*</span></span>
+      <span class="filebtn"><label for="f_ptf">Choose .csv files&hellip;</label>
+        <input type="file" id="f_ptf" accept=".csv" multiple disabled><span class="fname" id="n_ptf">no files chosen</span></span>
+    </div>
+
+    <div class="actions">
+      <button class="go" id="runCombine" disabled>Combine into one file</button>
+      <span class="hint" id="combineHint">Waiting for the engine to load&hellip;</span>
+    </div>
+
+    <div id="combineResult"></div>
+    <p class="note">File names must contain <code>PTF1</code>, <code>PTF2</code> or <code>PTF3</code> so each can be sorted
+      into the right block &mdash; the daily exports already do. Combining across several days groups by journal type;
+      if your import needs strict day&#8209;by&#8209;day order, combine one day at a time.</p>
+  </section>
+
+  <div class="actions"><button class="clearbtn" id="clearLocal" disabled>Clear local working data</button><span class="hint" id="clearHint">Nothing retained.</span></div>
+  <footer class="foot">No analytics &middot; no telemetry &middot; no cookies &middot; no cloud APIs &middot; local processing after verified boot</footer>
+</div>
+
+<!-- ==== embedded Python (verbatim from the project) ==== -->
+<script type="text/x-python" id="src-pipeline_core">#!/usr/bin/env python3
+"""Daily till-reconciliation pipeline core (raw-export edition).
+
+Input layer reads the raw daily exports (no formulas):
+  * till workbook  : Sales / Sales Items / Sales Payments (headers on row 5)
+  * Zettle CSV     : card provider transactions (Sale ID inside Item Title)
+  * banking CSV    : per-shop cash banked / card settlement / floats
+  * coupons CSV    : per-coupon-code issued amounts (only needed on coupon days)
+
+Cleaning rules, derived fields and every PTF output column are carried over
+from the previously validated engine (ptf_engine.py / clean_pipeline.py) --
+logic reused, only the I/O rebuilt.  Pure pandas; no Excel/LibreOffice.
+"""
+import itertools, json, os, io
+import pandas as pd
+import polars as pl
+
+TOL = 0.005
+NA = '#N/A'
+SUFFIX = {'VOUCHER': 'v', 'CASH': 'x', 'IZETTLE': 'c', 'CARD': 'c'}
+MOVE_PRIORITY = {'VOUCHER': 0, 'CASH': 1, 'IZETTLE': 2, 'CARD': 2}
+R2 = lambda x: round(float(x), 2)
+
+def to_polars(df, columns):
+    """Explicit pandas-to-Polars boundary without a PyArrow dependency."""
+    return pl.DataFrame(df[list(columns)].to_dict(orient='list'))
+
+def to_pandas(df):
+    """Explicit Polars-to-pandas boundary without PyArrow."""
+    return pd.DataFrame(df.to_dict(as_series=False))
+
+def read_csv_polars_any(path, **kwargs):
+    """Decode UTF-8/CP1252/Latin-1, then parse with Polars."""
+    raw = open(path, 'rb').read()
+    for encoding in ('utf-8-sig', 'cp1252', 'latin-1'):
+        try:
+            decoded = raw.decode(encoding); break
+        except UnicodeDecodeError:
+            continue
+    return pl.read_csv(io.StringIO(decoded), **kwargs)
+
+def money_expr(column):
+    value = pl.col(column).cast(pl.String).str.strip_chars()
+    negative = value.str.starts_with('(') & value.str.ends_with(')')
+    cleaned = (value.str.replace_all('£','',literal=True)
+                    .str.replace_all('GBP','',literal=True)
+                    .str.replace_all(',','',literal=True)
+                    .str.replace_all(' ','',literal=True)
+                    .str.strip_chars('()').cast(pl.Float64, strict=False))
+    return pl.when(negative).then(-cleaned).otherwise(cleaned).alias(column)
+
+
+def ci_eq(a, b):
+    return str(a).lower() == str(b).lower()
+
+
+# ============================================================ input layer
+def read_till_workbook(path):
+    """Raw export: 4 metadata rows, headers on row 5."""
+    frames = {}
+    for sheet in ('Sales', 'Sales Items', 'Sales Payments'):
+        df = pd.read_excel(path, sheet_name=sheet, skiprows=4, dtype={'Sale ID': str})
+        df.columns = [str(c).strip() for c in df.columns]
+        frames[sheet] = df
+    s, si, sp = frames['Sales'], frames['Sales Items'], frames['Sales Payments']
+    for df, cols in ((s, ['Total', 'Net', 'VAT', 'Coupon Amount']),
+                     (si, ['Total', 'Net', 'VAT', 'Quantity', 'Unit Price']),
+                     (sp, ['Payment Amount'])):
+        for c in cols:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors='coerce')
+    sp['Payment Amount'] = sp['Payment Amount'].fillna(0.0)   # known quirk: blank cash amounts
+    for df in (s, si, sp):
+        df['Sale ID'] = df['Sale ID'].astype(str)
+    return s, si, sp
+
+
+def read_csv_any(path, **kw):
+    """Read a CSV whatever encoding it was saved in (Excel on Windows saves
+    cp1252 with pound signs as byte 0xA3; 'CSV UTF-8' adds a BOM)."""
+    for enc in ('utf-8-sig', 'cp1252', 'latin-1'):
+        try:
+            return pd.read_csv(path, encoding=enc, **kw)
+        except UnicodeDecodeError:
+            continue
+    return pd.read_csv(path, encoding='latin-1', **kw)
+
+
+def money(series):
+    """Numeric conversion tolerant of Excel formatting: pound signs, thousands
+    commas, spaces, parentheses for negatives."""
+    s = series.astype(str).str.strip()
+    neg = s.str.startswith('(') & s.str.endswith(')')
+    s = (s.str.replace('\u00a3', '', regex=False).str.replace('GBP', '', regex=False)
+          .str.replace(',', '', regex=False).str.replace(' ', '', regex=False)
+          .str.strip('()'))
+    out = pd.to_numeric(s, errors='coerce')
+    return out.mask(neg, -out)
+
+
+def read_zettle(path):
+    """Read, filter and normalise a Zettle export safely in Pyodide."""
+    z = read_csv_polars_any(path, infer_schema_length=10000)
+    z = z.rename({c: str(c).strip() for c in z.columns})
+
+    required = {'Type', 'Gross', 'Fee', 'Net', 'Item Title'}
+    missing = sorted(required - set(z.columns))
+    if missing:
+        raise ValueError(
+            f"Zettle CSV missing required columns: {missing}. "
+            f"Columns found: {list(z.columns)}"
+        )
+
+    typ = pl.col('Type').cast(pl.String).str.strip_chars()
+    pos, refund = typ == 'POS Payment', typ == 'Payment Refund'
+    from_us = ((pl.col('From Email Address').cast(pl.String).str.strip_chars().str.to_lowercase() == 'paypal@message.org.uk') if 'From Email Address' in z.columns else pl.lit(False))
+    z = z.filter(pos | (refund & from_us))
+
+    if 'Status' in z.columns:
+        z = z.filter(
+            pl.col('Status').cast(pl.String).str.strip_chars() == 'Completed'
+        )
+
+    z = z.with_columns([
+        money_expr(c).fill_null(0.0) for c in ('Gross', 'Fee', 'Net')
+    ])
+
+    # Avoid Polars str.split(...).list.first() here. In Pyodide/WASM that
+    # list allocation can panic with `capacity overflow` on some exports.
+    z = to_pandas(z)
+    z['Sale ID'] = (
+        z['Item Title']
+        .fillna('')
+        .astype(str)
+        .str.partition('_')[0]
+        .str.strip()
+    )
+    return z
+
+def read_banking(path):
+    """banking_floats.csv columns:
+      Shop_Code, Cash_Banked, Float_Change  [, Card_Settlement - optional]
+    Card_Settlement, if present and filled in, is cross-checked against the
+    Zettle download per shop; leave the cell blank or omit the column to skip
+    the check (the journal always posts the Zettle figure either way).
+    Float_Change is the signed figure each shop reports:
+      +7 = float increased by £7, -5 = float decreased by £5, 0/blank = no change.
+    Older files with Float_Start/Float_End and/or Cash_Coins still load:
+    Float_Change is derived as End - Start and coins are added into Cash_Banked.
+    """
+    b = read_csv_any(path)
+    b.columns = [str(c).strip() for c in b.columns]
+    need = ['Shop_Code', 'Cash_Banked']
+    missing = [c for c in need if c not in b.columns]
+    if missing:
+        raise ValueError(f'banking CSV missing columns: {missing}')
+    for c in b.columns:
+        if c != 'Shop_Code':
+            b[c] = money(b[c])
+            if c != 'Card_Settlement':          # blank settlement = "not provided"
+                b[c] = b[c].fillna(0.0)
+    if 'Card_Settlement' not in b.columns:      # column is optional
+        b['Card_Settlement'] = float('nan')
+    if 'Float_Change' not in b.columns:
+        if 'Float_Start' in b.columns and 'Float_End' in b.columns:
+            b['Float_Change'] = b['Float_End'] - b['Float_Start']
+        else:
+            raise ValueError('banking CSV missing column: Float_Change')
+    if 'Cash_Coins' in b.columns:                 # old format: fold coins in
+        b['Cash_Banked'] = b['Cash_Banked'] + b['Cash_Coins']
+    b['Shop_Code'] = b['Shop_Code'].astype(str).str.strip()
+    return b.set_index('Shop_Code')
+
+
+def read_coupons(path):
+    """Polars-native coupon input and normalisation."""
+    c = read_csv_polars_any(path, infer_schema_length=10000)
+    norm = {str(x).strip().lower().replace(' ', '_'): x for x in c.columns}
+    code_col = norm.get('coupon_code') or norm.get('coupon') or norm.get('code')
+    amt_col = norm.get('amount') or norm.get('value') or norm.get('total')
+    if code_col is None or amt_col is None:
+        raise ValueError("coupons CSV needs a 'Coupon code' column and an " f"'Amount' column (found: {list(c.columns)})")
+    c = (c.rename({code_col:'Coupon_Code',amt_col:'Amount'})
+          .with_columns(money_expr('Amount').fill_null(0.0), pl.col('Coupon_Code').cast(pl.String).str.strip_chars())
+          .filter(pl.col('Coupon_Code')!='').select(['Coupon_Code','Amount']))
+    return to_pandas(c)
+
+def match_refund_ids(zettle, sp, report):
+    """Copy till Sale IDs onto Zettle refund rows by matching the refund
+    amount to a negative card payment in Sales Payments."""
+    is_refund = zettle['Gross'] < 0
+    in_till = zettle['Sale ID'].isin(set(sp['Sale ID']))
+    todo = list(zettle.index[is_refund & ~in_till])
+    neg = sp[(sp['Payment Method'].astype(str).str.upper() == 'IZETTLE')
+             & (pd.to_numeric(sp['Payment Amount'], errors='coerce') < 0)]
+    used = set()
+    for zi in todo:
+        amt = R2(zettle.at[zi, 'Gross'])
+        cand = [i for i in neg.index
+                if i not in used and R2(neg.at[i, 'Payment Amount']) == amt]
+        if not cand:
+            report['manual_review'].append({'step': 'refund',
+                'reason': f'Zettle refund of £{amt} has no matching negative card payment in the till'})
+            continue
+        i = cand[0]
+        used.add(i)
+        zettle.at[zi, 'Sale ID'] = str(neg.at[i, 'Sale ID'])
+        report.setdefault('refund_matches', []).append(
+            {'zettle_gross': amt, 'sale_id': str(neg.at[i, 'Sale ID'])})
+    return zettle
+
+
+def subset_for_amount(amounts, target):
+    """(indices, split) -- exact whole-row subset preferred, else one partial row.
+    Identical strategy to the validated pipeline (deterministic)."""
+    n = len(amounts)
+    order = sorted(range(n), key=lambda i: -amounts[i])
+    for k in range(1, n + 1):
+        for combo in itertools.combinations(range(n), k):
+            if abs(sum(amounts[i] for i in combo) - target) < TOL:
+                return list(combo), None
+    for k in range(0, n):
+        for combo in itertools.combinations(range(n), k):
+            rem = R2(target - sum(amounts[i] for i in combo))
+            if rem <= TOL:
+                continue
+            for i in order:
+                if i in combo:
+                    continue
+                if amounts[i] - rem > TOL:
+                    return list(combo), (i, rem)
+    return None, None
+
+
+def clean(s, si, sp, report):
+    """Apply the four daily cleaning rules to the three dataframes in place
+    (returns new dataframes). Order: splits/merges -> voids -> penny -> MISC."""
+    s, si, sp = s.copy(), si.copy(), sp.copy()
+
+    # ---------------- rule 1: multi-payment-type sales -----------------
+    sp['_m'] = sp['Payment Method'].astype(str).str.upper()
+    all_ids = set(sp['Sale ID'])
+    drop_sp = []
+    new_sales_rows, new_item_rows = [], []
+    for sid, grp in sp.groupby('Sale ID', sort=True):
+        if len(grp) < 2:
+            continue
+        # merge duplicate same-method payments
+        merged = []
+        for m, g in grp.groupby('_m'):
+            idxs = list(g.index)
+            if len(idxs) > 1:
+                tot = R2(g['Payment Amount'].sum())
+                sp.loc[idxs[0], 'Payment Amount'] = tot
+                drop_sp += idxs[1:]
+                report['merges'].append({'sale_id': sid, 'method': m,
+                                         'merged_amount': tot, 'rows_merged': len(idxs)})
+            merged.append(idxs[0])
+        if len(merged) < 2:
+            continue
+        merged.sort(key=lambda i: MOVE_PRIORITY.get(sp.loc[i, '_m'], 1))
+        keeper, movers = merged[-1], merged[:-1]
+        sale_rows = s.index[s['Sale ID'] == sid].tolist()
+        avail = si.index[si['Sale ID'] == sid].tolist()
+        for mv in movers:
+            method = sp.loc[mv, '_m']
+            amt = R2(sp.loc[mv, 'Payment Amount'])
+            letter = SUFFIX.get(method)
+            if letter is None or (letter == 'c'
+                                  and sp.loc[keeper, '_m'] in ('IZETTLE', 'CARD')):
+                report['manual_review'].append({'step': 'split', 'sale_id': sid,
+                    'reason': f'unhandled payment method {method}'})
+                continue
+            new_id = sid + letter
+            while new_id in all_ids:
+                new_id += letter
+            all_ids.add(new_id)
+            sp.loc[mv, 'Sale ID'] = new_id
+            if sale_rows:
+                sr = sale_rows[0]
+                s.loc[sr, 'Total'] = R2(float(s.loc[sr, 'Total'] or 0) - amt)
+                nr = s.loc[sr].copy()
+                nr['Sale ID'] = new_id
+                nr['Total'] = amt
+                for c in ('Net', 'VAT', 'Quantity', 'Coupon Amount'):
+                    if c in nr.index:
+                        nr[c] = None
+                new_sales_rows.append(nr)
+            amounts = [float(si.loc[r, 'Total'] or 0) for r in avail]
+            combo, split_item = subset_for_amount(amounts, amt)
+            if combo is None:
+                report['manual_review'].append({'step': 'split', 'sale_id': sid,
+                    'reason': f'could not allocate items to {method} £{amt}'})
+            else:
+                moved = [avail[i] for i in combo]
+                si.loc[moved, 'Sale ID'] = new_id
+                if split_item is not None:
+                    i, take = split_item
+                    r0 = avail[i]
+                    si.loc[r0, 'Total'] = R2(amounts[i] - take)
+                    nr = si.loc[r0].copy()
+                    nr['Sale ID'] = new_id
+                    nr['Total'] = R2(take)
+                    for c in ('Net', 'VAT'):
+                        if c in nr.index:
+                            nr[c] = 0.0
+                    new_item_rows.append(nr)
+                    moved.append(-1)
+                avail = [r for r in avail if r not in moved]
+            report['splits'].append({'sale_id': sid, 'new_id': new_id, 'method': method,
+                                     'amount': amt, 'kept_on_base': sp.loc[keeper, '_m']})
+    sp = sp.drop(index=drop_sp)
+    if new_sales_rows:
+        s = pd.concat([s, pd.DataFrame(new_sales_rows)], ignore_index=True)
+    if new_item_rows:
+        si = pd.concat([si, pd.DataFrame(new_item_rows)], ignore_index=True)
+    sp = sp.drop(columns=['_m'])
+
+    # ---------------- rule 2: voided sales with value -------------------
+    void_mask = (s['Order Status'].astype(str) == 'VOIDED') & (s['Total'].fillna(0).abs() > TOL)
+    for _, r in s[void_mask].iterrows():
+        report['voids'].append({'sale_id': r['Sale ID'], 'outlet': r.get('Outlet'),
+                                'total': float(r['Total'])})
+    void_ids = set(s.loc[void_mask, 'Sale ID'])
+    s = s[~s['Sale ID'].isin(void_ids)].reset_index(drop=True)
+    si = si[~si['Sale ID'].isin(void_ids)].reset_index(drop=True)
+    sp = sp[~sp['Sale ID'].isin(void_ids)].reset_index(drop=True)
+
+    # ---------------- rule 3: penny rounding fixes ----------------------
+    pay_tot = sp.groupby('Sale ID')['Payment Amount'].sum()
+    item_tot = si.groupby('Sale ID')['Total'].sum()
+    for sid, pt in pay_tot.items():
+        it = item_tot.get(sid)
+        if it is None or pt == 0:
+            continue
+        diff = R2(it - pt)
+        if abs(diff) < 0.001:
+            continue
+        if abs(diff) > 0.05:
+            report['manual_review'].append({'step': 'penny', 'sale_id': sid,
+                'reason': f'items vs payments differ by {diff} (> 5p threshold)'})
+            continue
+        for r in si.index[si['Sale ID'] == sid]:
+            t = float(si.loc[r, 'Total'] or 0)
+            if t - diff > 0.001:
+                si.loc[r, 'Total'] = R2(t - diff)
+                break
+        s.loc[s['Sale ID'] == sid, 'Total'] = R2(pt)
+        report['penny_fixes'].append({'sale_id': sid, 'adjustment': -diff,
+                                      'items_were': R2(it), 'payments': R2(pt)})
+    return s, si, sp
+
+
+def fix_negative_misc(s, si, sp, coupon_ids, report):
+    """Rule 4: re-label negative MISC refund lines to the product of the matching
+    original sale (same shop, same payment type, same amount, nearest preceding,
+    original sale all one product). Needs derived Shop/Payment Type."""
+    si = si.copy()
+    d = derive_item_columns(si, s, sp, coupon_ids)
+    misc_mask = (d['Product Name'].astype(str) == 'MISC') & (d['Total'] < 0)
+    groups = d[~misc_mask].groupby('Sale ID').agg(
+        total=('Total', 'sum'), time=('Sale Time', 'first'),
+        shop=('Shop', 'first'), ptype=('Payment Type', 'first'),
+        names=('Product Name', lambda x: sorted(set(x.astype(str)))),
+        cat=('Category', 'first'))
+    for idx, m in d[misc_mask].iterrows():
+        amt, shop, ptype, t = abs(m['Total']), m['Shop'], m['Payment Type'], str(m['Sale Time'])
+        cand = groups[(groups['shop'] == shop) & (groups['ptype'] == ptype)
+                      & (abs(groups['total'] - amt) < TOL)
+                      & (groups['time'].astype(str) < t)
+                      & (groups['names'].str.len() == 1)]
+        entry = {'sale_id': m['Sale ID'], 'shop': shop, 'amount': -amt, 'ptype': ptype}
+        if len(cand) == 0:
+            entry['matched'] = None
+            report['manual_review'].append({'step': 'misc', **entry,
+                                            'reason': 'no matching original sale found'})
+        else:
+            best = cand.sort_values('time').iloc[-1]
+            si.loc[idx, 'Product Name'] = best['names'][0]
+            si.loc[idx, 'Category'] = best['cat']
+            entry.update({'matched': best.name, 'product': best['names'][0],
+                          'category': best['cat']})
+        report['misc'].append(entry)
+    return si
+
+
+# ============================================================ derived fields
+def relabel_voucher_donations(si, sp, coupon_ids, report):
+    """Donation items paid by voucher or coupon are not real donations:
+    re-label them as Extra Basket Item so they post as grocery sales."""
+    NEW_NAME = 'Extra Basket Item'      # <- change these two lines if you
+    NEW_CAT = 'Grocery Sales'           #    ever want a different label
+    voucher_ids = set(sp.loc[sp['Payment Method'].astype(str).str.upper() == 'VOUCHER',
+                             'Sale ID'])
+    is_donation = (si['Category'].astype(str) == 'Donations') | \
+                  (si['Product Name'].astype(str).str.endswith('Donation'))
+    hit = is_donation & si['Sale ID'].isin(voucher_ids | set(coupon_ids))
+    for idx in si.index[hit]:
+        report.setdefault('donation_relabels', []).append(
+            {'sale_id': str(si.at[idx, 'Sale ID']),
+             'was': str(si.at[idx, 'Product Name']),
+             'amount': float(si.at[idx, 'Total'] or 0)})
+    si.loc[hit, 'Product Name'] = NEW_NAME
+    si.loc[hit, 'Category'] = NEW_CAT
+    return si
+
+
+def derive_item_columns(si, sales, sp, coupon_ids, blank_desc_label='0'):
+    """Shop / Description / Payment Type -- exact replica of the validated
+    engine (Excel semantics: empty referenced cell -> 0 / configurable label)."""
+    outlet_tag = sales.drop_duplicates('Sale ID').set_index('Sale ID')['Outlet Tag']
+    si = si.copy()
+    si['Shop'] = si['Sale ID'].map(outlet_tag)
+    first_pay = sp.drop_duplicates('Sale ID').set_index('Sale ID')
+    aa = si['Sale ID'].map(
+        first_pay.apply(lambda r: r['Payment Method']
+                        if str(r['Payment Method']).upper() == 'CASH'
+                        else r['Card Entry Mode'], axis=1))
+    itot = si.groupby('Sale ID')['Total'].sum()
+    in_sp = set(sp['Sale ID'])
+
+    def ptype(row, aa_val):
+        if row['Sale ID'] in coupon_ids:
+            return 'Coupon' if abs(round(itot.get(row['Sale ID'], 0), 2)) < TOL else 'Split'
+        if row['Sale ID'] not in in_sp:
+            return None
+        a = str(aa_val) if pd.notna(aa_val) else ''
+        if a.lower() == 'cash':
+            return 'Cash'
+        if a[-3:] == 'EMV':
+            return 'Card'
+        return 'Redeemed'
+
+    si['Payment Type'] = [ptype(r, a) for (_, r), a in zip(si.iterrows(), aa)]
+    shop = si['Shop'].astype(str)
+    si['Description'] = si['Product Name'].where(
+        shop.str[:2].isin(['CG', 'CL']), si['Category'])
+    si['Description'] = si['Description'].fillna(blank_desc_label)
+    return si
+
+
+# ============================================================ PTF 1
+def build_ptf1_pivot(si_d):
+    """Polars PTF1 aggregation with the original tuple contract."""
+    sub = si_d[si_d['Payment Type'].isin(['Card','Cash'])].copy()
+    if len(sub) == 0: return []
+    sub['S'], sub['D'] = sub['Shop'].astype(str), sub['Description'].astype(str)
+    g = (to_polars(sub,['S','D','Net','VAT','Total']).group_by(['S','D'])
+         .agg(pl.col('Net').sum(),pl.col('VAT').sum(),pl.col('Total').sum())
+         .with_columns(pl.col('S').str.to_lowercase().alias('_s'),pl.col('D').str.to_lowercase().alias('_d'))
+         .sort(['_s','_d'],maintain_order=True).drop(['_s','_d']))
+    return [(r['S'],r['D'],r['Net'],r['VAT'],r['Total']) for r in g.iter_rows(named=True)]
+
+def eval_ptf1_row(shop, desc, net, vat, total, control_ae, tx_date, tx_ref):
+    A, B = shop, str(desc)
+    C = float(net) if net is not None else 0.0     # column C: Net from the till
+    E = float(total) if total is not None else 0.0
+    D = float(vat) if vat is not None else 0.0
+    if B in ('General Donation', 'CG Network Donation') or A == 'test' or abs(E) < 1e-9:
+        return None
+    J = abs(E)
+    K = 4150 if B[-8:] == 'Donation' else (2710 if ci_eq(B, 'Pay-it-Forward') else 5000)
+    L = (str(A)[-5:] + 'SHOP4150') if ci_eq(B, 'Pay-it-forward') else desc
+    M = '' if ci_eq(B, 'Pay-it-Forward') else control_ae.get(A, NA)
+    if M == NA:
+        N = NA
+    elif M == '':
+        N = ''
+    else:
+        N = 'GRO' if str(A)[:3] == 'CG-' else ('CLO' if str(A)[:3] == 'CL-' else 'HEC')
+    P = J if D == 0 else abs(round(C, 2))          # net-of-VAT value
+    Q = 'Donations' if K == 4150 else 'Grocery Sales'
+    R = 4 if E >= 0 else 5
+    U, V = abs(P), abs(J - P)
+    W = (8 if (ci_eq(B, 'Pay-it-forward') or Q == 'Donations') else 0) if V < 1e-9 else 1
+    return {'H': '2SUMUP', 'I': None, 'J': J, 'K': K, 'L': L, 'M': M, 'N': N, 'O': A,
+            'P': P, 'Q': Q, 'R': R, 'S': 0, 'T': 0, 'U': U, 'V': V, 'W': W,
+            'X': abs(V), 'Y': tx_date, 'Z': tx_ref}
+
+
+def eval_ptf1_donation_row(label, cost_centre, dept, si_d, tx_date, tx_ref):
+    mask = (si_d['Product Name'].astype(str) == label) & (si_d['Shop'].astype(str) != 'test')
+    J = float(si_d.loc[mask, 'Total'].sum())
+    return {'H': '2SUMUP', 'I': None, 'J': J, 'K': 4150, 'L': label,
+            'M': cost_centre, 'N': dept, 'O': None, 'P': J, 'Q': 'Donations',
+            'R': 4, 'S': 0, 'T': 0, 'U': J, 'V': 0, 'W': 8, 'X': 0,
+            'Y': tx_date, 'Z': tx_ref}
+
+
+def build_ptf1_rows(si_d, ref, tx_date, tx_ref, report):
+    control = ref['shop_cost_centre']
+    rows = [eval_ptf1_donation_row('CG Network Donation', 153, 'GRO', si_d, tx_date, tx_ref),
+            eval_ptf1_donation_row('General Donation', 100, 'CEN', si_d, tx_date, tx_ref)]
+    for shop, desc, net, vat, total in build_ptf1_pivot(si_d):
+        r = eval_ptf1_row(shop, desc, net, vat, total, control, tx_date, tx_ref)
+        if r is not None:
+            if r['M'] == NA:
+                report['manual_review'].append({'step': 'ptf1', 'shop': shop,
+                    'reason': f'shop {shop} missing from Control cost-centre map'})
+            rows.append(r)
+    return rows
+
+
+# ============================================================ PTF 2
+def dept_of(shop):
+    return 'GRO' if str(shop)[:3] == 'CG-' else ('CLO' if str(shop)[:3] == 'CL-' else 'HEC')
+
+
+def build_banking_table(banking, zettle, till_cash, coupons_by_shop, ref, report):
+    """Per-shop figures feeding PTF 2, in Control-sheet shop order."""
+    zn = zettle.groupby('Shop')['Net'].sum() if len(zettle) else pd.Series(dtype=float)
+    zf = zettle.groupby('Shop')['Fee'].sum() if len(zettle) else pd.Series(dtype=float)
+    shops = list(ref['shop_cost_centre'])
+    extra = [sh for sh in sorted(set(till_cash.index) | set(zn.index))
+             if sh not in shops and str(sh) != 'nan']
+    for sh in extra:
+        shops.append(sh)
+        report['manual_review'].append({'step': 'ptf2', 'shop': sh,
+            'reason': 'shop not in reference Control sheet; appended at end'})
+    table = []
+    for sh in shops:
+        bk = banking.loc[sh] if sh in banking.index else None
+        cash_banked = float(bk['Cash_Banked']) if bk is not None else 0.0
+        float_change = float(bk['Float_Change']) if bk is not None else 0.0
+        tc = float(till_cash.get(sh, 0.0))
+        card = R2(zn.get(sh, 0.0))
+        fee = R2(zf.get(sh, 0.0))          # negative, grouped per shop from Zettle CSV
+        # true cash discrepancy: what was banked vs what the till says should
+        # have been banked (cash payments minus any takings kept to raise the
+        # float, plus any cash released by lowering the float)
+        difference = R2(cash_banked - tc + float_change)
+        if bk is None and tc > TOL:
+            report['manual_review'].append({'step': 'ptf2', 'shop': sh,
+                'reason': f'till cash £{R2(tc)} but no banking row supplied'})
+        if bk is not None and pd.notna(bk['Card_Settlement']) \
+                and abs(float(bk['Card_Settlement']) - card) > TOL:
+            report['manual_review'].append({'step': 'ptf2', 'shop': sh,
+                'reason': (f'Card_Settlement £{R2(bk["Card_Settlement"])} differs from '
+                           f'Zettle net £{card} (Zettle figure posted)')})
+        if abs(difference) > 150:
+            # a large cash difference is flagged for review but never blocks the
+            # export -- it is posted to the Cash differences nominal so the
+            # journal still balances and the PTFs are still written.
+            report.setdefault('warnings', []).append({'step': 'ptf2', 'shop': sh,
+                'reason': (f'cash difference £{difference} exceeds £150 - posted to '
+                           'Cash differences, please review')})
+        table.append({'shop': sh,
+                      'cost_centre': ref['shop_cost_centre'].get(sh, NA),
+                      'Sum of Card': card,
+                      'Sum of Zettle Fee': fee,
+                      'Sum of Redeemed': None,
+                      'Sum of Coupons': R2(coupons_by_shop.get(sh, 0.0)),
+                      'Sum of Cash - Notes': R2(cash_banked),
+                      'Sum of Cash - Coins': 0.0,
+                      'Sum of Difference': difference,
+                      'Sum of Float Change': R2(-float_change),
+                      'float_desc': ('decreased' if float_change < -TOL
+                                     else ('increased' if float_change > TOL else ''))})
+    return table
+
+
+def build_ptf2_rows(bank_table, ref, tx_date, tx_ref):
+    rows = []
+    for shop in bank_table:
+        for rt in ref['ptf2_row_types']:
+            t = rt['type']
+            E = shop[t]
+            Ev = 0.0 if E is None else float(E)
+            J = abs(Ev)
+            if rt['bank_ref'] == 'Shop':                      # bank rows (1980/1990)
+                rows.append({'H': '2SUMUP', 'I': int(rt['bank']), 'J': J,
+                             'K': None, 'L': None, 'M': None, 'N': None, 'O': None,
+                             'P': None, 'Q': shop['shop'], 'R': 1, 'S': 0, 'T': 0,
+                             'U': None, 'V': None, 'W': None, 'X': None,
+                             'Y': tx_date, 'Z': tx_ref})
+            else:                                             # nominal rows
+                code = int(rt['code'])
+                L = ('Float ' + shop['float_desc']) if t == 'Sum of Float Change' \
+                    else rt['description']
+                blank_cc = code in (1920, 2710)
+                rows.append({'H': '2SUMUP', 'I': None, 'J': J, 'K': code, 'L': L,
+                             'M': None if blank_cc else shop['cost_centre'],
+                             'N': None if blank_cc else dept_of(shop['shop']),
+                             'O': shop['shop'], 'P': J, 'Q': rt['bank_ref'],
+                             'R': 4 if Ev > 0 else 5, 'S': 0, 'T': 0,
+                             'U': J, 'V': 0, 'W': 0, 'X': 0,
+                             'Y': tx_date, 'Z': tx_ref})
+    return rows
+
+
+def build_ptf3_rows(sp, sales, coupons, ref, tx_date, tx_ref, report):
+    outlet_tag = sales.drop_duplicates('Sale ID').set_index('Sale ID')['Outlet Tag']
+    v = sp[sp['Payment Method'].astype(str).str.upper() == 'VOUCHER'].copy()
+    v['Shop'] = v['Sale ID'].map(outlet_tag)
+    v['Ref'] = v['Reference Number'].astype(str)
+    v['Series'] = v['Ref'].str[-4:]
+    control = ref['shop_cost_centre']
+    rows = []
+
+    def cc_and_dept(shop):
+        m = control.get(shop)
+        if m is None:
+            return 152, 'GRO'
+        return m, dept_of(shop)
+
+    # ---- block 1: shop x voucher series -> nominal = series
+    if len(v):
+        g1 = v.groupby(['Shop', 'Series'])['Payment Amount'].sum().reset_index()
+        g1 = g1.sort_values(['Shop', 'Series'],
+                            key=lambda c: c.astype(str).str.lower(), kind='stable')
+        for _, r in g1.iterrows():
+            J = abs(R2(r['Payment Amount']))
+            M, N = cc_and_dept(r['Shop'])
+            if M == 152:
+                report['manual_review'].append({'step': 'ptf3', 'shop': r['Shop'],
+                    'reason': 'voucher shop missing from Control map (cost centre 152 used)'})
+            rows.append({'H': '2SUMUP', 'I': None, 'J': J, 'K': r['Series'],
+                         'L': 'PIF donations redeemed', 'M': M, 'N': N, 'O': r['Shop'],
+                         'P': J, 'Q': 'Grocery Sales', 'R': 4, 'S': 0, 'T': 0,
+                         'U': J, 'V': 0, 'W': 8, 'X': 0, 'Y': tx_date, 'Z': tx_ref})
+        # ---- block 2: shop x full reference -> nominal 2710 (contra)
+        g2 = v.groupby(['Shop', 'Ref'])['Payment Amount'].sum().reset_index()
+        g2 = g2.sort_values(['Shop', 'Ref'],
+                            key=lambda c: c.astype(str).str.lower(), kind='stable')
+        for _, r in g2.iterrows():
+            J = abs(R2(r['Payment Amount']))
+            rows.append({'H': '2SUMUP', 'I': None, 'J': J, 'K': 2710,
+                         'L': 'Voucher - ' + r['Ref'], 'M': '', 'N': '', 'O': r['Shop'],
+                         'P': J, 'Q': 'Grocery Sales', 'R': 5, 'S': 0, 'T': 0,
+                         'U': J, 'V': 0, 'W': 8, 'X': 0, 'Y': tx_date, 'Z': tx_ref})
+
+    # ---- block 3: coupons issued, by coupon code -> nominal 5000 (contra)
+    if coupons is not None and len(coupons):
+        cdf = coupons.sort_values('Coupon_Code',
+                                  key=lambda c: c.astype(str).str.lower(), kind='stable')
+        for _, r in cdf.iterrows():
+            code = r['Coupon_Code']
+            J = abs(R2(r['Amount']))
+            if J < 1e-9:
+                continue
+            outlet = ref['coupon_outlet'].get(code) or ('CG-' + code[:5])
+            if code not in ref['coupon_outlet']:
+                report['manual_review'].append({'step': 'ptf3', 'coupon': code,
+                    'reason': f'coupon code {code} not in Control outlet map'})
+            M, N = cc_and_dept(outlet)
+            rows.append({'H': '2SUMUP', 'I': None, 'J': J, 'K': 5000,
+                         'L': 'Coupon - ' + code, 'M': M, 'N': N, 'O': outlet,
+                         'P': J, 'Q': 'Grocery Sales', 'R': 5, 'S': 0, 'T': 0,
+                         'U': J, 'V': 0, 'W': 8, 'X': 0, 'Y': tx_date, 'Z': tx_ref})
+    return rows
+
+
+# ============================================================ checks & export
+def side(rows, codes):
+    return R2(sum(float(x['J']) for x in rows
+                  if x.get('R') in codes and isinstance(x.get('J'), (int, float))))
+
+
+def balance_and_checks(ptf1, ptf2, ptf3, s, si, sp, zettle, coupons, report):
+    b3=R2(side(ptf1,{4,2})+side(ptf2,{4,2})+side(ptf3,{4,2})); b4=R2(side(ptf1,{5,1})+side(ptf2,{5,1})+side(ptf3,{5,1}))
+    ip=to_polars(si,['Sale ID','Total']).group_by('Sale ID').agg(pl.col('Total').sum().alias('items'))
+    pp=to_polars(sp,['Sale ID','Payment Amount']).group_by('Sale ID').agg(pl.col('Payment Amount').sum().alias('payments'))
+    mismatch=ip.join(pp,on='Sale ID',how='inner').select((pl.col('items')-pl.col('payments')).abs().sum()).item() or 0.0
+    till_coupons=R2(-pd.to_numeric(s.get('Coupon Amount'),errors='coerce').fillna(0).sum()); file_coupons=R2(coupons['Amount'].sum()) if coupons is not None else 0.0
+    matched=zettle[zettle['Sale ID'].isin(set(sp['Sale ID']))]; izettle=sp[sp['Payment Method'].astype(str).str.upper()=='IZETTLE']
+    checks={'PTF Totals side A (B3)':b3,'PTF Totals side B (B4)':b4,'PTF Difference == 0':R2(b4-b3),'Items vs Payments abs mismatch == 0':R2(mismatch),'MISC remaining == 0':R2(si.loc[si['Product Name'].astype(str)=='MISC','Total'].sum()),'Voids with value == 0':R2(s.loc[s['Order Status'].astype(str)=='VOIDED','Total'].fillna(0).abs().sum()),'Multi payment types left == 0':int((sp.groupby('Sale ID').size()>1).sum()),'Zettle gross vs till card payments == 0':R2(matched['Gross'].sum()-izettle['Payment Amount'].sum()),'Zettle rows unmatched to till == 0':int((~zettle['Sale ID'].isin(set(sp['Sale ID']))).sum()),'Coupon file vs till coupons == 0':R2(file_coupons-till_coupons)}
+    report['checks']=checks; report['failed_checks']=[k for k,v in checks.items() if k.endswith('== 0') and abs(float(v))>TOL]; report['balanced']=not report['failed_checks']; return report['balanced']
+
+def build_donations_summary(si_d, outdir, base, report):
+    """One CSV per day: every shop and the total of each donation type
+    it received (from the cleaned, re-labelled Sales Items)."""
+    d = si_d.copy()
+    is_donation = (d['Category'].astype(str) == 'Donations') | \
+                  (d['Product Name'].astype(str).str.endswith('Donation'))
+    d = d[is_donation]
+    if len(d) == 0:
+        report['donations_summary'] = None
+        return None
+    g = (d.groupby(['Shop', 'Product Name'])['Total'].sum().round(2)
+          .reset_index()
+          .rename(columns={'Product Name': 'Donation Type', 'Total': 'Total Value'}))
+    g = g.sort_values(['Shop', 'Donation Type'],
+                      key=lambda c: c.astype(str).str.lower(), kind='stable')
+    p = os.path.join(outdir, f'{base}_donations_summary.csv')
+    g.to_csv(p, index=False)
+    report['donations_summary'] = p
+    return p
+
+
+PTF_HEADERS = ['AccountNumber', 'CBAccountNumber', 'GoodsValueInAccountCurrency',
+               'NominalAnalysisNominalAccountNumber/1', 'NominalAnalysisNominalAnalysisNarrative/1',
+               'NominalAnalysisNominalCostCentre/1', 'NominalAnalysisNominalDepartment/1',
+               'NominalAnalysisTransactionAnalysisCode/1', 'NominalAnalysisTransactionValue/1',
+               'SecondReference', 'SYSTraderTranType', 'TaxAnalysisDiscountPercentage/1',
+               'TaxAnalysisDiscountValue/1', 'TaxAnalysisGoodsValueBeforeDiscount/1',
+               'TaxAnalysisTaxOnGoodsValue/1', 'TaxAnalysisTaxRate/1', 'TaxValue',
+               'TransactionDate', 'TransactionReference']
+
+
+def rows_to_df(rows):
+    recs = []
+    for x in rows:
+        rec = []
+        for c in range(8, 27):
+            v = x.get(chr(64 + c))
+            if isinstance(v, float):
+                v = round(v, 2)
+            if hasattr(v, 'strftime'):
+                v = v.strftime('%d/%m/%Y')
+            rec.append(v)
+        recs.append(rec)
+    return pd.DataFrame(recs, columns=PTF_HEADERS)
+</script>
+<script type="text/x-python" id="src-clean_pipeline">#!/usr/bin/env python3
+"""Daily till-reconciliation pipeline (raw-export edition).
+
+Usage:
+  python3 clean_pipeline.py <till_export.xlsx> <zettle.csv> <banking_floats.csv> \
+          <output_dir> [--coupons coupons.csv] [--reference reference/reference.json] \
+          [--blank-desc LABEL]
+
+Outputs (in <output_dir>):
+  *_PTF1_export.csv / *_PTF2_export.csv / *_PTF3_export.csv   (only if balanced)
+  *_CLEANED.xlsx        cleaned Sales / Sales Items / Sales Payments for review
+  *_run_report.json     every change made + all checks
+  SUMMARY.txt           plain-English result
+"""
+import sys, os, json, argparse
+import pandas as pd
+import pipeline_core as pc
+
+
+def run_day(till_path, zettle_path, banking_path, outdir, coupons_path=None,
+            reference_path='reference/reference.json', blank_desc='0'):
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(till_path))[0]
+    report = {'input': till_path, 'zettle': zettle_path, 'banking': banking_path,
+              'coupons': coupons_path, 'splits': [], 'merges': [], 'voids': [],
+              'penny_fixes': [], 'misc': [], 'manual_review': [], 'warnings': [],
+              'checks': {}}
+    ref = json.load(open(reference_path))
+
+    # ---------------- read raw inputs
+    s, si, sp = pc.read_till_workbook(till_path)
+    zettle = pc.read_zettle(zettle_path)
+    banking = pc.read_banking(banking_path)
+    coupons = pc.read_coupons(coupons_path) if coupons_path else None
+
+    # trading date & reference
+    dates = pd.to_datetime(s['Sale Date']).dropna()
+    tx_date = dates.min()
+    if dates.dt.date.nunique() > 1:
+        report['manual_review'].append({'step': 'input',
+            'reason': f'till export spans {dates.dt.date.nunique()} dates'})
+    tx_ref = 'SU {:02d}.{:02d}.{}'.format(tx_date.day, tx_date.month, str(tx_date.year)[-2:])
+    report['trading_date'] = str(tx_date.date())
+
+    # coupon sale IDs: sales redeemed against a coupon
+    coupon_ids = set(s.loc[pd.to_numeric(s.get('Coupon Amount'), errors='coerce')
+                           .fillna(0) != 0, 'Sale ID'])
+    report['coupon_sales'] = sorted(coupon_ids)
+
+    # match Zettle refund rows to the till before anything else uses Zettle
+    zettle = pc.match_refund_ids(zettle, sp, report)
+
+    # ---------------- clean (4 rules)
+    s, si, sp = pc.clean(s, si, sp, report)
+    si = pc.fix_negative_misc(s, si, sp, coupon_ids, report)
+    si = pc.relabel_voucher_donations(si, sp, coupon_ids, report)
+
+    # ---------------- derived fields on cleaned data
+    si_d = pc.derive_item_columns(si, s, sp, coupon_ids, blank_desc_label=blank_desc)
+    zettle['Shop'] = zettle['Sale ID'].map(
+        s.drop_duplicates('Sale ID').set_index('Sale ID')['Outlet Tag'])
+    sp_shop = sp.copy()
+    sp_shop['Shop'] = sp_shop['Sale ID'].map(
+        s.drop_duplicates('Sale ID').set_index('Sale ID')['Outlet Tag'])
+    till_cash = (sp_shop[sp_shop['Payment Method'].astype(str).str.upper() == 'CASH']
+                 .groupby('Shop')['Payment Amount'].sum())
+
+    # coupons redeemed per shop (feeds the PTF 2 'Sum of Coupons' line): the
+    # coupon codes are mapped to their posting outlet via the Control map, so
+    # the whole coupon total lands on the mapped outlet(s).
+    coupons_by_shop = {}
+    if coupons is not None:
+        for _, r in coupons.iterrows():
+            outlet = ref['coupon_outlet'].get(r['Coupon_Code']) or ('CG-' + r['Coupon_Code'][:5])
+            coupons_by_shop[outlet] = coupons_by_shop.get(outlet, 0.0) + float(r['Amount'])
+
+    # ---------------- PTF outputs
+    ptf1 = pc.build_ptf1_rows(si_d, ref, tx_date, tx_ref, report)
+    bank_table = pc.build_banking_table(banking, zettle, till_cash, coupons_by_shop, ref, report)
+    ptf2 = pc.build_ptf2_rows(bank_table, ref, tx_date, tx_ref)
+    ptf3 = pc.build_ptf3_rows(sp, s, coupons, ref, tx_date, tx_ref, report)
+
+    # ---------------- checks
+    balanced = pc.balance_and_checks(ptf1, ptf2, ptf3, s, si, sp, zettle, coupons, report)
+
+    # ---------------- outputs
+    exports = []
+    if balanced and not report['manual_review']:
+        for name, rows in (('PTF1', ptf1), ('PTF2', ptf2), ('PTF3', ptf3)):
+            p = os.path.join(outdir, f'{base}_{name}_export.csv')
+            pc.rows_to_df(rows).to_csv(p, index=False)
+            exports.append(p)
+    report['exports'] = exports
+
+    cleaned = os.path.join(outdir, f'{base}_CLEANED.xlsx')
+    with pd.ExcelWriter(cleaned) as xw:
+        s.to_excel(xw, sheet_name='Sales', index=False)
+        si_d.to_excel(xw, sheet_name='Sales Items', index=False)
+        sp.to_excel(xw, sheet_name='Sales Payments', index=False)
+        zettle.to_excel(xw, sheet_name='Zettle', index=False)
+        pd.DataFrame(bank_table).to_excel(xw, sheet_name='Banking', index=False)
+    report['cleaned_workbook'] = cleaned
+    pc.build_donations_summary(si_d, outdir, base, report)
+
+    with open(os.path.join(outdir, f'{base}_run_report.json'), 'w') as f:
+        json.dump(report, f, indent=2, default=str)
+
+    # plain-English summary
+    lines = [f"Till reconciliation for {report['trading_date']}", '']
+    if balanced and not report['manual_review']:
+        lines += [f"BALANCED  -  both sides £{report['checks']['PTF Totals side A (B3)']:,.2f}",
+                  '', 'Exports written:'] + ['  ' + os.path.basename(e) for e in exports]
+        if report['warnings']:
+            lines += ['', 'FOR REVIEW (exports were still written):']
+            for w in report['warnings']:
+                lines.append(f"  {w['shop']}: {w['reason']}")
+    else:
+        lines.append('NEEDS YOUR ATTENTION - exports were NOT written.')
+        for k in report['failed_checks']:
+            lines.append(f'  FAILED CHECK: {k} = {report["checks"][k]}')
+        for m in report['manual_review']:
+            lines.append(f'  REVIEW: {m}')
+        for w in report.get('warnings', []):
+            lines.append(f"  ALSO FOR REVIEW: {w['shop']}: {w['reason']}")
+    lines += ['', f"Changes made: {len(report['splits'])} split(s), "
+              f"{len(report['merges'])} merge(s), {len(report['voids'])} void(s) removed, "
+              f"{len(report['penny_fixes'])} penny fix(es), "
+              f"{sum(1 for m in report['misc'] if m.get('matched'))} MISC re-label(s)."]
+    with open(os.path.join(outdir, 'SUMMARY.txt'), 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    print('\n'.join(lines))
+    return report
+
+
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument('till'); ap.add_argument('zettle'); ap.add_argument('banking')
+    ap.add_argument('outdir')
+    ap.add_argument('--coupons'); ap.add_argument('--reference',
+                                                  default='reference/reference.json')
+    ap.add_argument('--blank-desc', default='0')
+    a = ap.parse_args()
+    run_day(a.till, a.zettle, a.banking, a.outdir, a.coupons, a.reference,
+            a.blank_desc)
+</script>
+<script type="application/json" id="src-reference">{
+  "source_workbook": "/mnt/project/29_01_26_DONE.xlsx",
+  "shop_cost_centre": {
+    "CG-BED01": "652",
+    "CG-BLA01": "A52",
+    "CG-BOL01": "A52",
+    "CG-BUR01": "A52",
+    "CG-BUR02": "652",
+    "CG-BUR03": "A52",
+    "CG-GLA01": "352",
+    "CG-HAR01": "N52",
+    "CG-HAR02": "A52",
+    "CG-HEX01": "N52",
+    "CG-ILF01": "752",
+    "CG-LEE01": "852",
+    "CG-LIN01": "552",
+    "CG-LIV01": "A52",
+    "CG-MID01": "N52",
+    "CG-NET01": "A52",
+    "CG-NEW01": "N52",
+    "CG-NEW02": "N52",
+    "CG-NFI01": "752",
+    "CG-RAG01": "N52",
+    "CG-RED01": "N52",
+    "CG-SAL01": "A52",
+    "CG-SHA01": "A52",
+    "CG-SHF01": "852",
+    "CG-SWA01": "252",
+    "CG-TEL01": "652",
+    "CG-WAL01": "652",
+    "CG-WAR01": "A52",
+    "CG-WIG01": "A52",
+    "Cafe - Mess": "A50",
+    "Cafe - NSE": "750",
+    "CG-DAR01": "N52",
+    "CG-SOU01": "N52",
+    "CL-SHA01": "A52",
+    "CG-WYT01": "A52",
+    "CG-CRE01": "A52",
+    "CG-EAL01": "752"
+  },
+  "ptf2_row_types": [
+    {
+      "type": "Sum of Card",
+      "bank": "1980",
+      "code": "",
+      "description": "",
+      "bank_ref": "Shop"
+    },
+    {
+      "type": "Sum of Zettle Fee",
+      "bank": "",
+      "code": "8420",
+      "description": "Zettle Fee",
+      "bank_ref": "Zettle Fee"
+    },
+    {
+      "type": "Sum of Redeemed",
+      "bank": "",
+      "code": "2710",
+      "description": "Vouchers and Gift Cards Redeemed",
+      "bank_ref": "Grocery Sales"
+    },
+    {
+      "type": "Sum of Coupons",
+      "bank": "",
+      "code": "5000",
+      "description": "Sales purchased by Coupon",
+      "bank_ref": "Grocery Sales"
+    },
+    {
+      "type": "Sum of Cash - Notes",
+      "bank": "1990",
+      "code": "",
+      "description": "",
+      "bank_ref": "Shop"
+    },
+    {
+      "type": "Sum of Cash - Coins",
+      "bank": "1990",
+      "code": "",
+      "description": "",
+      "bank_ref": "Shop"
+    },
+    {
+      "type": "Sum of Difference",
+      "bank": "",
+      "code": "5000",
+      "description": "Cash differences",
+      "bank_ref": "Grocery Sales"
+    },
+    {
+      "type": "Sum of Float Change",
+      "bank": "",
+      "code": "1920",
+      "description": "Float adjustment",
+      "bank_ref": "Float adjustment"
+    }
+  ],
+  "coupon_outlet": {
+    "CGVOLFREE": "Cafe - Mess",
+    "TMT121": "Cafe - Mess",
+    "NEWMCC": "Cafe - Mess",
+    "TMTVOLDRINK": "Cafe - Mess",
+    "TMTVOLFOOD": "Cafe - Mess",
+    "TMTVOLDRINKCREATIVE": "Cafe - Mess",
+    "TMTVOLDRINKEXECSUP": "Cafe - Mess",
+    "TMTVOLFOODCREATIVE": "Cafe - Mess",
+    "TMTVOLFOODEXECSUP": "Cafe - Mess",
+    "TMTVOLDRINKCGSHAR": "Cafe - Mess",
+    "TMTVOLFOODCGSHAR": "Cafe - Mess",
+    "FREEMEMB": "",
+    "CLOTHINGVOLFREE": "Cafe - Mess",
+    "BLA01COUNC4700": "CG-BLA01",
+    "WIG01COUNCIL104700": "CG-WIG01",
+    "WIG01COUNCIL154700": "CG-WIG01",
+    "WIG01COUNCIL204700": "CG-WIG01",
+    "WIG01COUNCIL254700": "CG-WIG01"
+  }
+}
+</script>
+
+<script type="text/x-python" id="src-bootstrap">
+import sys, os, io, json, traceback, shutil
+sys.path.insert(0, '/app')
+
+def _reset_dir(d):
+    shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d, exist_ok=True)
+
+def _run(till, zettle, banking, coupons, reference, blank_desc, out_dir):
+    for m in ('clean_pipeline', 'pipeline_core'):
+        sys.modules.pop(m, None)
+    out = {'ok': False}
+    buf = io.StringIO(); old = sys.stdout; sys.stdout = buf
+    try:
+        from clean_pipeline import run_day
+        _reset_dir(out_dir)
+        report = run_day(till, zettle, banking, out_dir,
+                         coupons_path=(coupons or None),
+                         reference_path=reference,
+                         blank_desc=(blank_desc or '0'))
+        out['ok'] = True
+        out['balanced'] = bool(report.get('balanced'))
+        out['manual_review'] = report.get('manual_review', [])
+        out['warnings'] = report.get('warnings', [])
+        out['trading_date'] = report.get('trading_date')
+    except Exception:
+        out['error'] = traceback.format_exc()
+    finally:
+        sys.stdout = old
+    out['stdout'] = buf.getvalue()
+    out['files'] = sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []
+    return json.dumps(out, default=str)
+
+def _combine(paths_json):
+    import polars as pl
+    paths=json.loads(paths_json); tagged={'PTF1':[],'PTF2':[],'PTF3':[]}; others=[]
+    for p in paths:
+        u=os.path.basename(p).upper().replace(' ','')
+        for tag in ('PTF1','PTF2','PTF3'):
+            if tag in u: tagged[tag].append(p); break
+        else: others.append(os.path.basename(p))
+    frames=[pl.read_csv(p,infer_schema_length=0,null_values=[]) for tag in ('PTF1','PTF2','PTF3') for p in tagged[tag]]
+    if not frames: return json.dumps({'ok':False,'error':'None of the files were recognised as PTF1/PTF2/PTF3 (check the file names).'})
+    combined=pl.concat(frames,how='vertical_relaxed'); before=combined.height
+    gv=pl.col('GoodsValueInAccountCurrency').cast(pl.Float64,strict=False); combined=combined.filter(~(gv.abs()<=0.005)); dropped=before-combined.height
+    with open('/work/combined.csv','wb') as f: f.write(combined.write_csv().encode('cp1252'))
+    j=pl.col('GoodsValueInAccountCurrency').cast(pl.Float64,strict=False).fill_null(0); r=pl.col('SYSTraderTranType').cast(pl.Int64,strict=False)
+    sums=combined.select(pl.when(r.is_in([4,2])).then(j).otherwise(0).sum().alias('a'),pl.when(r.is_in([5,1])).then(j).otherwise(0).sum().alias('b')); a=round(float(sums.item(0,'a')),2); b=round(float(sums.item(0,'b')),2)
+    return json.dumps({'ok':True,'rows':combined.height,'dropped_zero':dropped,'side_a':a,'side_b':b,'balanced':abs(a-b)<0.005,'others':others,'counts':{x:len(tagged[x]) for x in tagged}})
+</script>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js" crossorigin="anonymous"></script>
+<script>
+const $ = s => document.querySelector(s);
+let pyodide = null, ready = false;
+
+function setEngine(state, msg){
+  const e = $('#engine'); e.className = state; $('#engineTxt').textContent = msg;
+}
+
+/*
+  Offline privacy guard.
+  Pyodide needs local fetches during boot to read files from ./pyodide/ and ./wheels/.
+  Once boot has completed, this disables common browser network APIs so selected
+  till/CSV/XLSX data cannot be sent out accidentally by later code.
+*/
+function blockNetworkAfterBoot(){
+  const deny = () => { throw new Error('Network access is disabled after verified engine boot.'); };
+  try { window.fetch = deny; } catch(_) {}
+  if (window.XMLHttpRequest) { try { XMLHttpRequest.prototype.open = deny; XMLHttpRequest.prototype.send = deny; } catch(_) {} }
+  try { window.WebSocket = function(){ deny(); }; } catch(_) {}
+  if (window.EventSource) { try { window.EventSource = function(){ deny(); }; } catch(_) {} }
+  if (navigator.sendBeacon) { try { navigator.sendBeacon = () => false; } catch(_) {} }
+  try { window.open = deny; } catch(_) {}
+  document.addEventListener('click', event => { const a=event.target.closest&&event.target.closest('a[href]'); if(a&&!String(a.href).startsWith('blob:')) event.preventDefault(); }, true);
+  window.addEventListener('beforeunload', event => { if([...document.querySelectorAll('input[type=file]')].some(x=>x.files.length)){ event.preventDefault(); event.returnValue=''; } });
+}
+function setFileControls(enabled){ document.querySelectorAll('input[type=file]').forEach(x=>x.disabled=!enabled); }
+function clearFSPath(path){
+  if(!pyodide)return;
+  try{const FS=pyodide.FS; const walk=p=>{if(!FS.analyzePath(p).exists)return; const st=FS.stat(p); if(FS.isDir(st.mode)){FS.readdir(p).filter(n=>n!=='.'&&n!=='..').forEach(n=>walk(p+'/'+n)); if(p!=='/work')FS.rmdir(p);}else FS.unlink(p);}; walk(path);}catch(_){}
+}
+function clearLocalWorkingData(showMessage=true){
+  clearFSPath('/work'); try{pyodide.FS.mkdirTree('/work');}catch(_){}
+  document.querySelectorAll('input[type=file]').forEach(x=>{x.value='';x.dispatchEvent(new Event('change'));});
+  $('#dailyResult').innerHTML=''; $('#combineResult').innerHTML=''; $('#clearLocal').disabled=true;
+  if(showMessage)$('#clearHint').textContent='Browser working files cleared.';
+}
+
+function txt(id){ return document.getElementById(id).textContent; }
+
+async function boot(){
+  setFileControls(false);
+  try{
+    setEngine('', 'Downloading browser Python engine (Pyodide 314.0.2)…');
+    if(typeof loadPyodide!=='function')throw new Error('Pyodide loader was unavailable or blocked. Check the browser network and CSP.');
+
+    const indexURL='https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
+    const lockResponse=await fetch(indexURL+'pyodide-lock.json',{cache:'no-store'});
+    if(!lockResponse.ok)throw new Error('Pyodide lock file could not be downloaded: HTTP '+lockResponse.status);
+    const pyodideLock=await lockResponse.json();
+
+    pyodide=await loadPyodide({indexURL});
+    if(pyodide.version!=='314.0.2')throw new Error('Unexpected Pyodide version: '+pyodide.version);
+
+    setEngine('', 'Downloading and verifying pinned data libraries…');
+    await pyodide.loadPackage(['pandas','polars','micropip']);
+
+    // These are pure-Python packages pinned to their current releases.
+    await pyodide.runPythonAsync(`import micropip\nawait micropip.install(['et_xmlfile==2.0.0','openpyxl==3.1.5'])\nimport pandas, polars, openpyxl, et_xmlfile, micropip`);
+    const versions=JSON.parse(await pyodide.runPythonAsync(`import json,pandas,polars,openpyxl,et_xmlfile,micropip,sys\njson.dumps({'python':sys.version.split()[0],'pandas':pandas.__version__,'polars':polars.__version__,'micropip':micropip.__version__,'openpyxl':openpyxl.__version__,'et_xmlfile':et_xmlfile.__version__})`));
+    const lockedPackages=(pyodideLock&&pyodideLock.packages)||{};
+    for(const name of ['pandas','polars','micropip']){
+      const expected=lockedPackages[name]&&lockedPackages[name].version;
+      if(!expected)throw new Error('Bundled lock file has no pinned version for '+name+'.');
+      if(versions[name]!==expected)throw new Error(name+' version check failed: expected '+expected+', loaded '+versions[name]);
+    }
+    if(versions.openpyxl!=='3.1.5'||versions.et_xmlfile!=='2.0.0')throw new Error('Local wheel version check failed: '+JSON.stringify(versions));
+    const FS=pyodide.FS; FS.mkdirTree('/app/reference'); FS.mkdirTree('/work');
+    FS.writeFile('/app/pipeline_core.py',txt('src-pipeline_core')); FS.writeFile('/app/clean_pipeline.py',txt('src-clean_pipeline')); FS.writeFile('/app/reference/reference.json',txt('src-reference'));
+    await pyodide.runPythonAsync(txt('src-bootstrap'));
+
+    setEngine('', 'Running built-in pipeline self-test…');
+    const selfTest=JSON.parse(await pyodide.runPythonAsync(`
+import io, json, os, shutil
+import pandas as pd
+import polars as pl
+from openpyxl import Workbook, load_workbook
+
+root='/work/__startup_selftest__'
+shutil.rmtree(root, ignore_errors=True)
+os.makedirs(root, exist_ok=True)
+
+# pandas + openpyxl: create, write, reopen and verify an XLSX workbook.
+xlsx=root+'/roundtrip.xlsx'
+pd.DataFrame({'Sale ID':['S1','S2'],'Total':[10.25,-2.25]}).to_excel(xlsx,index=False)
+roundtrip=pd.read_excel(xlsx,dtype={'Sale ID':str})
+assert roundtrip['Sale ID'].tolist()==['S1','S2']
+assert round(float(roundtrip['Total'].sum()),2)==8.00
+
+# Polars: parse strings, cast amounts, filter zero rows and aggregate both sides.
+headers=['AccountNumber','CBAccountNumber','GoodsValueInAccountCurrency','SYSTraderTranType']
+p1=root+'/self_PTF1_export.csv'; p2=root+'/self_PTF2_export.csv'; p3=root+'/self_PTF3_export.csv'
+pd.DataFrame([['A','',10,4],['ZERO','',0,4]],columns=headers).to_csv(p1,index=False)
+pd.DataFrame([['B','',10,5]],columns=headers).to_csv(p2,index=False)
+pd.DataFrame([],columns=headers).to_csv(p3,index=False)
+result=json.loads(_combine(json.dumps([p2,p1,p3])))
+assert result['ok'] and result['rows']==2 and result['dropped_zero']==1
+assert result['balanced'] and result['side_a']==10.0 and result['side_b']==10.0
+combined=pd.read_csv('/work/combined.csv',encoding='cp1252')
+assert combined['AccountNumber'].tolist()==['A','B']
+
+shutil.rmtree(root,ignore_errors=True)
+try: os.remove('/work/combined.csv')
+except FileNotFoundError: pass
+json.dumps({'ok':True,'xlsx_rows':len(roundtrip),'combined_rows':result['rows']})
+`));
+    if(!selfTest.ok)throw new Error('Built-in pipeline self-test failed.');
+
+    blockNetworkAfterBoot(); ready=true; setFileControls(true);
+    setEngine('ready','Verified browser engine ready — startup self-test passed; network locked');
+    $('#privacyState').innerHTML='<strong>Private processing enabled:</strong> pinned libraries downloaded, version-checked and pipeline-tested; browser network APIs are now disabled. You may select files.';
+    for(const b of ['#runDaily','#runCombine'])$(b).disabled=false; $('#clearLocal').disabled=false;
+    $('#dailyHint').textContent='Till, Zettle and banking files are required.'; $('#combineHint').textContent='Select one or more PTF export CSVs.';
+  }catch(err){
+    ready=false;setFileControls(false);for(const b of ['#runDaily','#runCombine','#clearLocal'])$(b).disabled=true;
+    const detail=(err&&(err.message||String(err)))||'unknown error';setEngine('err','Startup failed — file selection remains locked.');
+    $('#privacyState').innerHTML='<strong>Fail-closed:</strong> a required pinned library was missing, blocked or failed verification. No operational files can be selected.';
+    const note=`<div class="verdict bad"><div class="band"><span class="stamp">Locked</span><span class="headline">The verified browser engine could not be prepared. File selection remains disabled.</span></div><pre class="console">${colourConsole(detail)}</pre></div>`;
+    $('#dailyResult').innerHTML=note;$('#combineResult').innerHTML=note;console.error(err);
+  }
+}
+
+/* ---- file-picker wiring ---- */
+function wire(inputId, nameId, emptyText){
+  const inp = $(inputId), name = $(nameId);
+  inp.addEventListener('change', ()=>{
+    if(inp.files.length === 0){ name.textContent = emptyText; name.classList.remove('set'); }
+    else if(inp.files.length === 1){ name.textContent = inp.files[0].name; name.classList.add('set'); }
+    else { name.textContent = inp.files.length + ' files'; name.classList.add('set'); }
+  });
+}
+wire('#f_till','#n_till','no file chosen');
+wire('#f_zettle','#n_zettle','no file chosen');
+wire('#f_bank','#n_bank','no file chosen');
+wire('#f_coup','#n_coup','no file chosen');
+wire('#f_ref','#n_ref','built-in (from 29/01/26)');
+wire('#f_ptf','#n_ptf','no files chosen');
+
+/* ---- tabs ---- */
+function selectTab(which){
+  const map = {daily:['#tab-daily','#panel-daily'], combine:['#tab-combine','#panel-combine']};
+  for(const k in map){
+    const on = k===which;
+    $(map[k][0]).setAttribute('aria-selected', on);
+    $(map[k][1]).hidden = !on;
+  }
+}
+$('#tab-daily').onclick = ()=>selectTab('daily');
+$('#tab-combine').onclick = ()=>selectTab('combine');
+
+/* ---- helpers ---- */
+async function toFS(file, path){
+  const buf = new Uint8Array(await file.arrayBuffer());
+  pyodide.FS.writeFile(path, buf);
+}
+const MIME = {csv:'text/csv', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              json:'application/json', txt:'text/plain'};
+function downloadFromFS(fsPath, downloadName){
+  const data = pyodide.FS.readFile(fsPath);          // Uint8Array
+  const ext = downloadName.split('.').pop().toLowerCase();
+  const blob = new Blob([data], {type: MIME[ext] || 'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = downloadName; document.body.appendChild(a);
+  a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+function colourConsole(s){
+  return s.split('\n').map(line=>{
+    const u = line.toUpperCase();
+    let cls = '';
+    if(/BALANCED|WRITTEN:|PASSED|\bOK\b/.test(u)) cls='g';
+    else if(/WARNING|REVIEW|MISMATCH|DIFFER|ATTENTION|FAILED CHECK/.test(u)) cls='y';
+    else if(/ERROR|PROBLEM|TRACEBACK|FAILED\b/.test(u)) cls='r';
+    const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return cls ? `<span class="${cls}">${esc}</span>` : esc;
+  }).join('\n');
+}
+
+/* ---- daily run ---- */
+$('#runDaily').onclick = async ()=>{
+  if(!ready) return;
+  const till = $('#f_till').files[0], zettle = $('#f_zettle').files[0], bank = $('#f_bank').files[0];
+  if(!till || !zettle || !bank){
+    $('#dailyHint').textContent = 'Please attach the till export, Zettle download and banking file.';
+    return;
+  }
+  const coup = $('#f_coup').files[0], ref = $('#f_ref').files[0];
+  const btn = $('#runDaily'); btn.disabled = true; btn.textContent = 'Running\u2026';
+  $('#dailyHint').textContent = 'Cleaning, transforming and balancing\u2026';
+  $('#dailyResult').innerHTML = '';
+  try{
+    const FS = pyodide.FS;
+    FS.mkdirTree('/work/in');
+    await toFS(till,   '/work/in/till.xlsx');
+    await toFS(zettle, '/work/in/zettle.csv');
+    await toFS(bank,   '/work/in/banking.csv');
+    let coupPath = '';
+    if(coup){ await toFS(coup, '/work/in/coupons.csv'); coupPath = '/work/in/coupons.csv'; }
+    let refPath = '/app/reference/reference.json';
+    if(ref){ await toFS(ref, '/work/in/reference.json'); refPath = '/work/in/reference.json'; }
+    const blank = $('#f_blank').value || '0';
+    const runner = pyodide.globals.get('_run');
+    const res = JSON.parse(runner('/work/in/till.xlsx','/work/in/zettle.csv','/work/in/banking.csv',
+                                  coupPath, refPath, blank, '/work/out'));
+    runner.destroy();
+    renderDaily(res);
+  }catch(err){
+    $('#dailyResult').innerHTML = verdictHTML('bad','Something went wrong',
+      'The engine hit an unexpected error.') + `<pre class="console">${colourConsole(String(err))}</pre>`;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Run reconciliation';
+    $('#dailyHint').textContent = 'Till, Zettle and banking files are required.';
+  }
+};
+
+function verdictHTML(kind, stamp, headline){
+  return `<div class="verdict ${kind}"><div class="band">
+    <span class="stamp">${stamp}</span><span class="headline">${headline}</span></div></div>`;
+}
+
+function renderDaily(res){
+  const host = $('#dailyResult');
+  if(res.error){
+    host.innerHTML = verdictHTML('bad','Error','The pipeline could not finish \u2014 details below.')
+      + `<pre class="console">${colourConsole(res.error)}</pre>`;
+    return;
+  }
+  const wrote = res.files.some(f=>/_PTF[123]_export\.csv$/.test(f));
+  let kind, stamp, head;
+  if(res.balanced && wrote){
+    const rev = (res.warnings && res.warnings.length);
+    kind = rev ? 'warn' : 'ok';
+    stamp = 'Balanced';
+    head = rev ? `Exports written for <b>${res.trading_date||''}</b> \u2014 some items flagged for review.`
+               : `Exports written for <b>${res.trading_date||''}</b>. Both sides agree.`;
+  }else{
+    kind = 'bad'; stamp = 'Needs attention';
+    head = `No exports written for <b>${res.trading_date||'this day'}</b> \u2014 see what needs a look below.`;
+  }
+  let html = verdictHTML(kind, stamp, head);
+  html += `<pre class="console">${colourConsole((res.stdout||'').trim())}</pre>`;
+
+  if(res.files.length){
+    const order = f => (/SUMMARY/.test(f)?0 : /_PTF1_/.test(f)?1 : /_PTF2_/.test(f)?2 :
+                        /_PTF3_/.test(f)?3 : /CLEANED/.test(f)?4 : /report/.test(f)?5 : 6);
+    const files = [...res.files].sort((a,b)=>order(a)-order(b));
+    html += `<div class="downloads"><h3>Download</h3><div class="dgrid">`;
+    for(const f of files){
+      const ext = f.split('.').pop().toLowerCase();
+      const primary = /_PTF[123]_export\.csv$/.test(f) ? 'primary' : '';
+      html += `<button class="dl ${primary}" data-f="${f}"><span class="ext">${ext}</span>${f}</button>`;
+    }
+    html += `</div></div>`;
+  }
+  host.innerHTML = html;
+  host.querySelectorAll('.dl').forEach(btn=>{
+    btn.onclick = ()=>downloadFromFS('/work/out/'+btn.dataset.f, btn.dataset.f);
+  });
+}
+
+/* ---- combine ---- */
+$('#runCombine').onclick = async ()=>{
+  if(!ready) return;
+  const files = [...$('#f_ptf').files];
+  if(files.length === 0){ $('#combineHint').textContent = 'Please attach at least one PTF export CSV.'; return; }
+  const btn = $('#runCombine'); btn.disabled = true; btn.textContent = 'Combining\u2026';
+  $('#combineResult').innerHTML = '';
+  try{
+    clearFSPath('/work/comb');
+    pyodide.FS.mkdirTree('/work/comb');
+    const paths = [];
+    for(let i=0;i<files.length;i++){
+      const p = '/work/comb/'+i+'__'+files[i].name.replace(/[^A-Za-z0-9._-]/g,'_');
+      await toFS(files[i], p); paths.push(p);
+    }
+    const fn = pyodide.globals.get('_combine');
+    const res = JSON.parse(fn(JSON.stringify(paths)));
+    fn.destroy();
+    renderCombine(res);
+  }catch(err){
+    $('#combineResult').innerHTML = verdictHTML('bad','Error','Could not combine the files.')
+      + `<pre class="console">${colourConsole(String(err))}</pre>`;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Combine into one file';
+  }
+};
+
+function renderCombine(res){
+  const host = $('#combineResult');
+  if(!res.ok){
+    host.innerHTML = verdictHTML('bad','Nothing combined', res.error); return;
+  }
+  const kind = res.balanced ? 'ok' : 'bad';
+  const head = res.balanced
+    ? `<b>${res.rows}</b> rows combined \u2014 both sides &pound;${res.side_a.toLocaleString('en-GB',{minimumFractionDigits:2})}.`
+    : `<b>${res.rows}</b> rows combined, but the sides differ: &pound;${res.side_a} vs &pound;${res.side_b}.`;
+  let html = verdictHTML(kind, res.balanced?'Balanced':'Out of balance', head);
+  const c = res.counts;
+  html += `<pre class="console">PTF1 files: ${c.PTF1}   PTF2 files: ${c.PTF2}   PTF3 files: ${c.PTF3}`
+        + (res.dropped_zero ? `\nZero-value rows removed: ${res.dropped_zero}` : '')
+        + (res.others.length ? `\nIgnored (not a PTF export): ${res.others.join(', ')}` : '')
+        + `</pre>`;
+  html += `<div class="downloads"><h3>Download</h3><div class="dgrid">
+    <button class="dl primary" id="dlComb"><span class="ext">csv</span>combined.csv</button></div></div>`;
+  host.innerHTML = html;
+  $('#dlComb').onclick = ()=>downloadFromFS('/work/combined.csv', 'PTF_combined.csv');
+}
+
+
+$('#clearLocal').onclick=()=>clearLocalWorkingData(true);
+document.querySelectorAll('input[type=file]').forEach(inp=>inp.addEventListener('change',()=>{if([...document.querySelectorAll('input[type=file]')].some(x=>x.files.length)){ $('#clearLocal').disabled=false; $('#clearHint').textContent='Selected and generated working files can be cleared at any time.'; }}));
+// No service worker, analytics, telemetry, cookies, cloud APIs or cache-update mechanism.
+boot();  
+</script>
+</body>
+</html>
